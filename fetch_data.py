@@ -4,57 +4,102 @@ from datetime import datetime
 import os
 
 API_KEY = os.environ.get('API_KEY')
-BASE_URL = "https://api.odcloud.kr/api/3034791/v1/uddi:fa09d13d-bce8-474e-b214-8008e79ec08f"
+BIZINFO_URL = "https://www.bizinfo.go.kr/uss/rss/bizInfoRss.do"
 
 def fetch_programs():
     all_data = []
     page = 1
-    per_page = 1000
-    today = datetime.now().strftime('%Y-%m-%d')
-    year_2026 = '2026-01-01'
+    per_page = 100
+    today = datetime.now().strftime('%Y%m%d')
+    year_2026 = '20260101'
 
-    print(f"수집 시작 / 기준일: {today}")
+    print(f"bizinfo.go.kr 수집 시작 / 기준일: {today}")
 
     while True:
         try:
-            res = requests.get(BASE_URL, params={
-                'page': page,
-                'perPage': per_page,
+            res = requests.get(BIZINFO_URL, params={
+                'dataType': 'json',
+                'pageUnit': per_page,
+                'pageIndex': page,
                 'serviceKey': API_KEY,
-                'returnType': 'json'
             }, timeout=60)
 
-            data = res.json()
-            items = data.get('data', [])
-            total = data.get('totalCount', 0)
+            print(f"HTTP 상태: {res.status_code}")
 
-            print(f"페이지 {page} / {(total//per_page)+1} ({len(items)}건 / 총 {total}건)")
+            data = res.json()
+
+            # 첫 페이지 필드 확인
+            if page == 1:
+                items_sample = data.get('jsonArray', data.get('data', data.get('items', [])))
+                if items_sample:
+                    print(f"필드 목록: {list(items_sample[0].keys())}")
+                    print(f"샘플: {json.dumps(items_sample[0], ensure_ascii=False)}")
+                print(f"응답 키 목록: {list(data.keys())}")
+
+            items = (
+                data.get('jsonArray') or
+                data.get('data') or
+                data.get('items') or
+                data.get('result') or
+                []
+            )
+
+            total = int(
+                data.get('totalCount') or
+                data.get('total') or
+                data.get('totalCnt') or
+                0
+            )
+
+            print(f"페이지 {page} ({len(items)}건 / 총 {total}건)")
 
             if not items:
+                print("데이터 없음 - 종료")
                 break
 
             for item in items:
-                end_date = item.get('신청종료일자', '') or ''
-                reg_date = item.get('등록일자', '') or ''
+                # 날짜 필드 (bizinfo 형식: 20260101)
+                end_date = (
+                    item.get('pbancEndDe') or
+                    item.get('reqstEndDe') or
+                    item.get('endDe') or
+                    ''
+                )
+                reg_date = (
+                    item.get('creatDt') or
+                    item.get('regDt') or
+                    item.get('insDt') or
+                    ''
+                )
+
+                end_date = str(end_date).replace('-', '')
+                reg_date = str(reg_date).replace('-', '')
 
                 is_2026   = reg_date >= year_2026
-                no_end    = end_date == ''
-                not_ended = end_date != '' and end_date >= today
+                no_end    = end_date == '' or end_date == 'None'
+                not_ended = end_date != '' and end_date != 'None' and end_date >= today
 
                 if is_2026 or no_end or not_ended:
+                    def fmt(d):
+                        d = str(d).replace('-','')
+                        if len(d) == 8:
+                            return f"{d[:4]}-{d[4:6]}-{d[6:8]}"
+                        return d or ''
+
                     all_data.append({
-                        "id":        str(item.get('번호', '')),
-                        "name":      item.get('사업명', ''),
-                        "org":       item.get('소관기관', ''),
-                        "agency":    item.get('수행기관', ''),
-                        "field":     item.get('분야', ''),
-                        "startDate": item.get('신청시작일자', ''),
-                        "endDate":   item.get('신청종료일자', ''),
-                        "url":       item.get('상세URL', ''),
-                        "regDate":   reg_date,
+                        "id":        str(item.get('pbancSn') or item.get('pblancId') or ''),
+                        "name":      item.get('pbancNm') or item.get('pblancNm') or '',
+                        "org":       item.get('jrsdInsttNm') or item.get('mnofNm') or '',
+                        "agency":    item.get('excInsttNm') or item.get('insttNm') or '',
+                        "field":     item.get('bsnsSeCdNm') or item.get('indutyNm') or '',
+                        "startDate": fmt(item.get('pbancBgngDe') or item.get('reqstBgngDe') or ''),
+                        "endDate":   fmt(end_date),
+                        "url":       item.get('detlPageUrl') or item.get('pblancUrl') or '',
+                        "region":    item.get('areaNmArray') or item.get('areaNm') or '전국',
+                        "regDate":   fmt(reg_date),
                     })
 
-            if page * per_page >= total:
+            if total == 0 or page * per_page >= total:
                 break
             page += 1
 
