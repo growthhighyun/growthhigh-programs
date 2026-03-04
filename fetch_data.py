@@ -6,83 +6,23 @@ import os
 API_KEY = os.environ.get('API_KEY')
 BASE_URL = "https://api.odcloud.kr/api/3034791/v1/uddi:fa09d13d-bce8-474e-b214-8008e79ec08f"
 
-def fetch_programs():
-    all_data = []
-    page = 1
-    per_page = 1000
-    today = datetime.now().strftime('%Y-%m-%d')
-    year_2026 = '2026-01-01'
+res = requests.get(BASE_URL, params={
+    'page': 1,
+    'perPage': 3,
+    'serviceKey': API_KEY,
+    'returnType': 'json'
+}, timeout=60)
 
-    print(f"[{datetime.now()}] 데이터 수집 시작")
-    print(f"조건: 등록일 >= {year_2026} OR 마감일 >= {today} OR 상시접수")
+data = res.json()
+sample = data.get('data', [])
+total = data.get('totalCount', 0)
 
-    while True:
-        try:
-            res = requests.get(BASE_URL, params={
-                'page': page,
-                'perPage': per_page,
-                'serviceKey': API_KEY,
-                'returnType': 'json'
-            }, timeout=60)
-
-            data = res.json()
-            items = data.get('data', [])
-            total = data.get('totalCount', 0)
-
-            print(f"  페이지 {page} / {(total//per_page)+1} ({len(items)}건 / 총 {total}건)")
-
-            if not items:
-                break
-
-            for item in items:
-                end_date = item.get('신청종료일자', '') or ''
-                reg_date = item.get('등록일자', '') or ''
-
-                is_2026   = reg_date >= year_2026
-                no_end    = end_date == ''
-                not_ended = end_date >= today
-
-                if is_2026 or no_end or not_ended:
-                    all_data.append({
-                        "id":        str(item.get('번호', '')),
-                        "name":      item.get('사업명', ''),
-                        "org":       item.get('소관기관', ''),
-                        "agency":    item.get('수행기관', ''),
-                        "field":     item.get('분야', ''),
-                        "overview":  item.get('사업개요', '') or '',
-                        "startDate": item.get('신청시작일자', ''),
-                        "endDate":   item.get('신청종료일자', ''),
-                        "url":       item.get('상세URL', ''),
-                        "region":    item.get('지역', '전국'),
-                        "regDate":   reg_date,
-                        "method":    item.get('신청방법', ''),
-                        "contact":   item.get('문의처', ''),
-                    })
-
-            if page * per_page >= total:
-                break
-            page += 1
-
-        except Exception as e:
-            print(f"에러 발생 page {page}: {e}")
-            import traceback
-            traceback.print_exc()
-            break
-
-    all_data.sort(key=lambda x: x.get('regDate', ''), reverse=True)
-    print(f"수집 완료: 총 {len(all_data)}건")
-    return all_data
-
-
-programs = fetch_programs()
-
-output = {
-    "updated": datetime.now().strftime('%Y-%m-%d %H:%M'),
-    "count": len(programs),
-    "data": programs
-}
+print(f"총 건수: {total}")
+print(f"필드 목록: {list(sample[0].keys()) if sample else '없음'}")
+print(f"샘플 1번:")
+print(json.dumps(sample[0], ensure_ascii=False, indent=2) if sample else '없음')
 
 with open('programs.json', 'w', encoding='utf-8') as f:
-    json.dump(output, f, ensure_ascii=False, indent=2)
+    json.dump({"updated": datetime.now().strftime('%Y-%m-%d %H:%M'), "count": 0, "data": []}, f, ensure_ascii=False)
 
-print(f"저장 완료: {len(programs)}건")
+print("완료")
