@@ -1,0 +1,38 @@
+name: 매일 정부지원사업 자동 업데이트
+
+on:
+  schedule:
+    - cron: '0 18 * * *'  # 매일 새벽 3시 KST
+  workflow_dispatch:        # 수동 실행 버튼 활성화
+
+jobs:
+  fetch-and-update:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설치
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: 라이브러리 설치
+        run: pip install requests
+
+      - name: 데이터 수집 실행
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+        run: python fetch_data.py
+
+      - name: 변경사항 자동 커밋
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Actions Bot"
+          git add programs.json
+          git diff --staged --quiet || git commit -m "📊 자동업데이트: $(date '+%Y-%m-%d %H:%M') KST"
+          git push
