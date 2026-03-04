@@ -29,21 +29,17 @@ def fetch_programs():
             items = data.get('data', [])
             total = data.get('totalCount', 0)
 
-            print(f"  → 페이지 {page} / {(total//per_page)+1} ({len(items)}건 / 총 {total}건)")
+            print(f"  페이지 {page} / {(total//per_page)+1} ({len(items)}건 / 총 {total}건)")
 
             if not items:
                 break
 
             for item in items:
-                end_date  = item.get('신청종료일자', '') or ''
-                reg_date  = item.get('등록일자', '')    or ''
+                end_date = item.get('신청종료일자', '') or ''
+                reg_date = item.get('등록일자', '') or ''
 
-                # A안 조건
-                # ① 등록일 2026년 이후
                 is_2026   = reg_date >= year_2026
-                # ② 마감일이 없는 것 (상시접수)
                 no_end    = end_date == ''
-                # ③ 마감일이 오늘 이후 (아직 유효)
                 not_ended = end_date >= today
 
                 if is_2026 or no_end or not_ended:
@@ -53,7 +49,7 @@ def fetch_programs():
                         "org":       item.get('소관기관', ''),
                         "agency":    item.get('수행기관', ''),
                         "field":     item.get('분야', ''),
-                        "overview":  item.get('사업개요', '') or item.get('지원내용', '') or '',
+                        "overview":  item.get('사업개요', '') or '',
                         "startDate": item.get('신청시작일자', ''),
                         "endDate":   item.get('신청종료일자', ''),
                         "url":       item.get('상세URL', ''),
@@ -68,15 +64,13 @@ def fetch_programs():
             page += 1
 
         except Exception as e:
-            print(f"  ⚠️ 에러 (page {page}): {e}")
+            print(f"에러 발생 page {page}: {e}")
             import traceback
             traceback.print_exc()
             break
 
-    # 최신 등록순 정렬
     all_data.sort(key=lambda x: x.get('regDate', ''), reverse=True)
-
-    print(f"✅ 수집 완료: 총 {len(all_data)}건")
+    print(f"수집 완료: 총 {len(all_data)}건")
     return all_data
 
 
@@ -91,14 +85,4 @@ output = {
 with open('programs.json', 'w', encoding='utf-8') as f:
     json.dump(output, f, ensure_ascii=False, indent=2)
 
-print(f"💾 programs.json 저장 완료 ({len(programs)}건)")
-```
-
----
-
-저장 후 **Actions → Run workflow** 실행해주세요!
-
-이번엔 로그에서 이런 게 보여야 해요:
-```
-조건: 등록일 >= 2026-01-01 OR 마감일 >= 2026-03-04 OR 상시접수
-✅ 수집 완료: 총 X,XXX건
+print(f"저장 완료: {len(programs)}건")
