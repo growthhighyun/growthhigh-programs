@@ -10,8 +10,10 @@ def fetch_programs():
     all_data = []
     page = 1
     per_page = 1000
+    today = datetime.now().strftime('%Y-%m-%d')
+    year_2026 = '2026-01-01'
 
-    print(f"수집 시작: {datetime.now()}")
+    print(f"수집 시작: {datetime.now()} / 기준일: {today}")
 
     while True:
         try:
@@ -32,18 +34,25 @@ def fetch_programs():
                 break
 
             for item in items:
-                # 필드 최소화로 용량 절약
-                all_data.append({
-                    "id":  str(item.get('번호', '')),
-                    "n":   item.get('사업명', ''),
-                    "o":   item.get('소관기관', ''),
-                    "a":   item.get('수행기관', ''),
-                    "f":   item.get('분야', ''),
-                    "s":   item.get('신청시작일자', ''),
-                    "e":   item.get('신청종료일자', ''),
-                    "u":   item.get('상세URL', ''),
-                    "r":   item.get('등록일자', ''),
-                })
+                end_date = item.get('신청종료일자', '') or ''
+                reg_date = item.get('등록일자', '') or ''
+
+                is_2026   = reg_date >= year_2026
+                no_end    = end_date == ''
+                not_ended = end_date != '' and end_date >= today
+
+                if is_2026 or no_end or not_ended:
+                    all_data.append({
+                        "id":        str(item.get('번호', '')),
+                        "name":      item.get('사업명', ''),
+                        "org":       item.get('소관기관', ''),
+                        "agency":    item.get('수행기관', ''),
+                        "field":     item.get('분야', ''),
+                        "startDate": item.get('신청시작일자', ''),
+                        "endDate":   item.get('신청종료일자', ''),
+                        "url":       item.get('상세URL', ''),
+                        "regDate":   reg_date,
+                    })
 
             if page * per_page >= total:
                 break
@@ -55,8 +64,7 @@ def fetch_programs():
             traceback.print_exc()
             break
 
-    # 최신순 정렬
-    all_data.sort(key=lambda x: x.get('r', ''), reverse=True)
+    all_data.sort(key=lambda x: x.get('regDate', ''), reverse=True)
     print(f"수집 완료: {len(all_data)}건")
     return all_data
 
